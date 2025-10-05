@@ -1,0 +1,42 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Expo
+.expo/
+.expo-shared/
+web-build/
+dist/
+build/
+
+# Metro / Cache
+.expo/web/cache
+.expo/web-report
+.cache/
+*.tmp
+
+# Logs
+*.log
+*.log.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.vs/
+
+# Tests / Coverage
+coverage/
+jest-cache/
+jest.config.js.map
+
+# Environment / Secrets
+.env
+.env.*

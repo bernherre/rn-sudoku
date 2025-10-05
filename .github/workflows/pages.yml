@@ -1,0 +1,45 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main, master ]  # ajusta si tu rama principal tiene otro nombre
+  workflow_dispatch:
+
+permissions:
+  contents: write  # necesario para publicar en gh-pages
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: |
+          npm ci || npm install
+
+      # Elige UNO de los dos builds según tu caso:
+      # 1) Repositorio de usuario: tuusuario.github.io  -> base-url "/"
+      # - name: Build web (root site)
+      #   run: npm run web:build:user
+
+      # 2) Repositorio normal: p.ej. rn-sudoku -> base-url "/rn-sudoku/"
+      - name: Build web (project repo under subpath)
+        run: npm run web:build:repo
+
+      - name: SPA fallback (404.html)
+        run: cp dist/index.html dist/404.html
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dist
+          publish_branch: gh-pages
