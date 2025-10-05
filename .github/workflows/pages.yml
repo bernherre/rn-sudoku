@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: '20'
 
+      # Evita conflictos de React en el runner (sin lockfile)
       - name: Pin react versions (18.2)
         run: |
           npm pkg set "dependencies.react=18.2.0"
@@ -32,8 +33,11 @@ jobs:
       - name: Build web
         run: npm run web:build
 
-      - name: SPA fallback (404.html)
-        run: cp dist/index.html dist/404.html
+      # Inyecta <base href="/rn-sudoku/"> para servir bajo subruta
+      - name: Inject <base> tag for GitHub Pages subpath
+        run: |
+          sed -i 's|<head>|<head><base href="/rn-sudoku/">|g' dist/index.html
+          cp dist/index.html dist/404.html
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3
