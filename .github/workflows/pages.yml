@@ -2,41 +2,29 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
-permissions:
-  contents: write
+    branches:
+      - main # Or your main branch
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '18' # Or your preferred Node.js version
 
+      - name: Install dependencies
+        run: npm install
 
-      - name: Install deps (no lockfile)
-        run: npm install 
+      - name: Build web application
+        run: npm run build:web # Replace with your actual build script for web
 
-      - name: Install missing Expo web dependency
-        run: npx expo install @expo/metro-runtime@~3.2.3
-
-      - name: Build web
-        run: npm run web:build
-
-      # Inyecta <base href="/rn-sudoku/"> para servir bajo subruta
-      - name: Inject <base> tag for GitHub Pages subpath
-        run: |
-          sed -i 's|<head>|<head><base href="/rn-sudoku/">|g' dist/index.html
-          cp dist/index.html dist/404.html
-
-      - name: Deploy to gh-pages
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dist
-          publish_branch: gh-pages
+          publish_dir: ./docs # Replace with the directory where your web build output is
