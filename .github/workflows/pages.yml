@@ -18,9 +18,6 @@ jobs:
         with:
           node-version: '18'
 
-      # Evita conflictos de React en el runner (sin lockfile)
-      - name: clean cache 
-        run: npm start
 
       - name: Install deps (no lockfile)
         run: npm install 
