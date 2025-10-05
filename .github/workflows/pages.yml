@@ -30,7 +30,7 @@ jobs:
         run: npm install --no-audit --no-fund --omit=optional
 
       - name: Build web
-        run: npm run web:build
+        run: npm run web:build:repo
 
       - name: SPA fallback (404.html)
         run: cp dist/index.html dist/404.html
