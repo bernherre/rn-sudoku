@@ -1,0 +1,16 @@
+# Normaliza a LF en el repo; Git convierte a CRLF al checkout si procede
+* text=auto eol=lf
+
+# Mantén CRLF para scripts de Windows
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Asegura LF en archivos típicos del proyecto
+*.js  text eol=lf
+*.ts  text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md  text eol=lf
