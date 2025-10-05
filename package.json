@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "test": "jest --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
-    "web:build": "expo export --platform web --output-dir dist"
+    "web:build:user": "expo export --platform web --output-dir dist",
+    "web:build:repo" :"expo export --platform web --output-dir dist/rn-sudoku/"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",
