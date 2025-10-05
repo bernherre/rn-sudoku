@@ -30,6 +30,9 @@ jobs:
       - name: Install deps (no lockfile)
         run: npm install --no-audit --no-fund --omit=optional
 
+      - name: Install missing Expo web dependency
+        run: npx expo install @expo/metro-runtime@~3.2.3
+
       - name: Build web
         run: npm run web:build
 

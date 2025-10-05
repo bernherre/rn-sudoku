@@ -12,6 +12,7 @@
     "web:build": "expo export --platform web --output-dir dist"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~3.2.3",
     "@react-navigation/native": "^6.1.17",
     "@react-navigation/native-stack": "^6.9.25",
     "expo": "~51.0.0",
@@ -43,7 +44,9 @@
   },
   "jest": {
     "preset": "jest-expo",
-    "setupFilesAfterEnv": [ "<rootDir>/jest.setup.ts" ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.ts"
+    ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
     }
