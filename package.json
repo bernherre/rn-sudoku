@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "test": "jest --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
-    "web:build:user": "expo export --platform web --output-dir dist",
+    "web:build": "expo export --platform web --output-dir dist",
     "web:build:repo" :"expo export --platform web --output-dir dist/rn-sudoku/"
   },
   "dependencies": {
