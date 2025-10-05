@@ -15,8 +15,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '18'
-      - name: clean cache 
-        run: npm start 
 
       # Pinea versiones para evitar que se resuelva react-dom@18.3.x
       - name: Install deps (no lockfile)
