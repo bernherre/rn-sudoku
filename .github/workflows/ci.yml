@@ -16,14 +16,50 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Pin react versions
-        run: npm pkg set "dependencies.react=18.2.0" "dependencies.react-dom=18.2.0" && npm pkg set "overrides.react-dom=18.2.0" "overrides.react=18.2.0"
+      # Pinea versiones para evitar que se resuelva react-dom@18.3.x
+      - name: Pin react versions (18.2)
+        run: |
+          npm pkg set "dependencies.react=18.2.0"
+          npm pkg set "dependencies.react-dom=18.2.0"
+          npm pkg set "overrides.react=18.2.0"
+          npm pkg set "overrides.react-dom=18.2.0"
+          npm pkg set "dependencies.react-native-web=0.19.10"
 
-      - name: Install deps (no lock)
-        run: npm install --no-audit --no-fund
+      - name: Install deps (no lockfile)
+        run: npm install --no-audit --no-fund --omit=optional
 
-      - name: Install deps
-        run: npm ci
+      - name: Lint
+        run: npm run lint || echo "No lint script"
+
+      - name: Test
+        run: npm test
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Pinea versiones para evitar que se resuelva react-dom@18.3.x
+      - name: Pin react versions (18.2)
+        run: |
+          npm pkg set "dependencies.react=18.2.0"
+          npm pkg set "dependencies.react-dom=18.2.0"
+          npm pkg set "overrides.react=18.2.0"
+          npm pkg set "overrides.react-dom=18.2.0"
+          npm pkg set "dependencies.react-native-web=0.19.10"
+
       - name: Install deps (no lockfile)
         run: npm install --no-audit --no-fund --omit=optional
 

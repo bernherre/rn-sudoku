@@ -9,8 +9,7 @@
     "web": "expo start --web",
     "test": "jest --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
-    "web:build:repo": "expo export -p web --output-dir dist --base-url /rn-sudoku/",
-    "web:build:user": "expo export -p web --output-dir dist --base-url /"
+    "web:build": "expo export -p web --output-dir dist --base-url /"
   },
   "dependencies": {
     "@react-navigation/native": "^6.1.17",
