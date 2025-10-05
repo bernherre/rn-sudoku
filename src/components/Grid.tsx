@@ -12,6 +12,7 @@ export default function Grid({ cellSize = 64 }: Props) {
     const { current, puzzle, select, selected, size, errors } = useGame();
     const n = current.length;
     const [rh, rw] = regionDims(size);
+    const errs = errors ?? new Set<string>();
 
     const renderCell = (r: number, c: number) => {
         const val = current[r][c];
