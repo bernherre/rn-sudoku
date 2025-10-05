@@ -18,8 +18,18 @@ jobs:
         with:
           node-version: '20'
 
+
+      - name: Pin react versions
+        run: |
+          npm pkg set "dependencies.react=18.2.0"
+          npm pkg set "dependencies.react-dom=18.2.0"
+          npm pkg set "overrides.react=18.2.0"
+          npm pkg set "overrides.react-dom=18.2.0"
+
       - name: Install deps
-        run: npm ci || npm install
+        run: npm ci
+      - name: Install deps (no lockfile)
+        run: npm install --no-audit --no-fund --omit=optional
 
       - name: Build web
         run: npm run web:build
