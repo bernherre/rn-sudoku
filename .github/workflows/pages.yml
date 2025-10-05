@@ -19,16 +19,9 @@ jobs:
           node-version: '20'
 
       # Evita conflictos de React en el runner (sin lockfile)
-      - name: Pin react versions (18.2)
-        run: |
-          npm pkg set "dependencies.react=18.2.0"
-          npm pkg set "dependencies.react-dom=18.2.0"
-          npm pkg set "overrides.react=18.2.0"
-          npm pkg set "overrides.react-dom=18.2.0"
-          npm pkg set "dependencies.react-native-web=0.19.10"
 
       - name: Install deps (no lockfile)
-        run: npm install --no-audit --no-fund --omit=optional
+        run: npm install 
 
       - name: Install missing Expo web dependency
         run: npx expo install @expo/metro-runtime@~3.2.3
