@@ -9,8 +9,8 @@
     "web": "expo start --web",
     "test": "jest --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
-    "web:build:local": "expo export --platform web --output-dir dist && node scripts/patch-base.js dist /",
-    "web:build:pages": "expo export --platform web --output-dir dist && node scripts/patch-base.js dist /rn-sudoku && node scripts/make-404.js dist"
+    "web:build:docs": "expo export --platform web --output-dir docs && node scripts/patch-base.js docs /rn-sudoku && node scripts/make-404.js docs",
+    "preview:docs": "npx serve docs -p 3000"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",
