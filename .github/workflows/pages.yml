@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '20'
 
-      # Si NO tienes package-lock.json, deja este bloque
+      # Quita este bloque si tienes package-lock.json y usas npm ci
       - name: Pin Expo Web deps (React 18.2)
         run: |
           npm pkg set "dependencies.react=18.2.0"
@@ -33,30 +33,44 @@ jobs:
       - name: Install
         run: npm install --no-audit --no-fund --omit=optional
 
-      # 🔧 Genera app.ci.json y assets válidos
+      # Genera un app.ci.json con assets válidos para evitar CRC de Jimp
       - name: Make CI config and assets
         run: node scripts/ci-make-config.js
 
-      # 🏗️ Exporta usando el config de CI (evita PNGs corruptos del repo)
+      # Export usando app.ci.json
       - name: Build web (to dist/)
         run: npx expo export --platform web --output-dir dist
+        env:
+          EXPO_APP_JSON: app.ci.json
 
-      # 🔁 Ajusta base para Pages bajo /rn-sudoku y crea 404
-      - name: Patch base and 404
+      # Inyecta <base href="/rn-sudoku/"> y crea 404.html
+      - name: Patch base and SPA 404
         run: |
           node scripts/patch-base.js dist /rn-sudoku
           node scripts/make-404.js dist
 
-      # 📁 Copia a /docs para Pages from branch
+      # (Opcional) elimina service workers para evitar cache viejo
+      - name: Remove service worker (optional)
+        run: |
+          rm -f dist/sw.js || true
+          rm -f dist/registerSW.* || true
+
+      # Copia a /docs para Pages
       - name: Prepare /docs for Pages
         run: |
           rm -rf docs
           mkdir -p docs
           cp -r dist/* docs/
 
+      # Evita Jekyll
       - name: Disable Jekyll
         run: echo > docs/.nojekyll
 
+      # Verifica que <base> está realmente inyectado (debug)
+      - name: Show index head (debug)
+        run: head -n 30 docs/index.html
+
+      # Commit a main
       - name: Commit docs to main
         uses: EndBug/add-and-commit@v9
         with:
