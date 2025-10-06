@@ -1,8 +1,7 @@
 name: Deploy to GitHub Pages
-
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -13,45 +12,93 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+        with: { node-version: '20' }
 
-      # Evita conflictos de React en el runner (sin lockfile)
-      - name: Pin react versions (18.2)
+      # (si no tienes lockfile, fuerza versiones seguras)
+      - name: Pin react versions
         run: |
           npm pkg set "dependencies.react=18.2.0"
           npm pkg set "dependencies.react-dom=18.2.0"
           npm pkg set "overrides.react=18.2.0"
           npm pkg set "overrides.react-dom=18.2.0"
           npm pkg set "dependencies.react-native-web=0.19.10"
+          npm pkg set "dependencies.@expo/metro-runtime=~3.2.3"
 
-      - name: Install deps (no lockfile)
+      - name: Install deps
         run: npm install --no-audit --no-fund --omit=optional
-
-      - name: Install missing Expo web dependency
-        run: npx expo install @expo/metro-runtime@~3.2.3
-
-      - name: Ensure valid PNG assets
-        run: |
-            mkdir -p assets
-            echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5YII=" | base64 -d > assets/icon.png
-            cp assets/icon.png assets/splash.png
-            cp assets/icon.png assets/favicon.png
 
       - name: Build web
         run: npm run web:build
 
-      # Inyecta <base href="/rn-sudoku/"> para servir bajo subruta
-      - name: Inject <base> tag for GitHub Pages subpath
+      - name: Ensure valid PNG assets (si hiciste esto en CI)
+        if: ${{ always() }}
+        run: |
+          [ -f assets/icon.png ] || (mkdir -p assets && cp dist/favicon.ico assets/icon.png || true)
+
+      - name: Inject <base> and SPA fallback (solo si subruta)
         run: |
           sed -i 's|<head>|<head><base href="/rn-sudoku/">|g' dist/index.html
           cp dist/index.html dist/404.html
+
+      - name: Disable Jekyll
+        run: echo > dist/.nojekyll
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dist
-          publish_branch: gh-pages
+          publish_dir: docs
+          publish_branch: main
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      # (si no tienes lockfile, fuerza versiones seguras)
+      - name: Pin react versions
+        run: |
+          npm pkg set "dependencies.react=18.2.0"
+          npm pkg set "dependencies.react-dom=18.2.0"
+          npm pkg set "overrides.react=18.2.0"
+          npm pkg set "overrides.react-dom=18.2.0"
+          npm pkg set "dependencies.react-native-web=0.19.10"
+          npm pkg set "dependencies.@expo/metro-runtime=~3.2.3"
+
+      - name: Install deps
+        run: npm install --no-audit --no-fund --omit=optional
+
+      - name: Build web
+        run: npm run web:build
+
+      - name: Ensure valid PNG assets (si hiciste esto en CI)
+        if: ${{ always() }}
+        run: |
+          [ -f assets/icon.png ] || (mkdir -p assets && cp dist/favicon.ico assets/icon.png || true)
+
+      - name: Inject <base> and SPA fallback (solo si subruta)
+        run: |
+          sed -i 's|<head>|<head><base href="/rn-sudoku/">|g' dist/index.html
+          cp dist/index.html dist/404.html
+
+      - name: Disable Jekyll
+        run: echo > dist/.nojekyll
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs
+          publish_branch: main
