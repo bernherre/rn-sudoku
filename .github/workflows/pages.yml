@@ -1,23 +1,17 @@
-﻿name: Deploy to GitHub Pages
+﻿name: Build Expo Web to /docs (Pages from branch)
 
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+  workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
+  contents: write
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,14 +20,34 @@ jobs:
         with:
           node-version: '20'
 
-      - run: npm ci || npm install
-      - name: Fix assets for CI (patch app.json)
-        run: node scripts/ci-fix-assets.js
+      # Si NO tienes package-lock.json, deja este bloque
+      - name: Pin Expo Web deps (React 18.2)
+        run: |
+          npm pkg set "dependencies.react=18.2.0"
+          npm pkg set "dependencies.react-dom=18.2.0"
+          npm pkg set "overrides.react=18.2.0"
+          npm pkg set "overrides.react-dom=18.2.0"
+          npm pkg set "dependencies.react-native-web=0.19.10"
+          npm pkg set "dependencies.@expo/metro-runtime=~3.2.3"
 
+      - name: Install
+        run: npm install --no-audit --no-fund --omit=optional
+
+      # 🔧 Genera app.ci.json y assets válidos
+      - name: Make CI config and assets
+        run: node scripts/ci-make-config.js
+
+      # 🏗️ Exporta usando el config de CI (evita PNGs corruptos del repo)
       - name: Build web (to dist/)
-        run: npm run web:build:pages
-        # Ej.: "web:build:pages": "expo export --platform web --output-dir dist && node scripts/patch-base.js dist /rn-sudoku && node scripts/make-404.js dist"
+        run: npx expo export --platform web --config app.ci.json --output-dir dist
 
+      # 🔁 Ajusta base para Pages bajo /rn-sudoku y crea 404
+      - name: Patch base and 404
+        run: |
+          node scripts/patch-base.js dist /rn-sudoku
+          node scripts/make-404.js dist
+
+      # 📁 Copia a /docs para Pages from branch
       - name: Prepare /docs for Pages
         run: |
           rm -rf docs
@@ -49,4 +63,3 @@ jobs:
           add: "docs"
           message: "[skip ci] build: export web to /docs"
           default_author: github_actions
-
