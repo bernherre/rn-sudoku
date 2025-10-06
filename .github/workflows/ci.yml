@@ -4,13 +4,14 @@ on:
   push:
     branches: [ main ]
     paths-ignore:
-      - 'docs/**'        # evita loops por el deploy
+      - 'docs/**'        # evita que el commit de deploy vuelva a disparar el CI
   pull_request:
     branches: [ main ]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -18,7 +19,8 @@ jobs:
         with:
           node-version: '20'
 
-      # Si no usas package-lock.json, fijamos versiones web compatibles
+      # Si NO usas package-lock.json, deja este bloque para evitar conflictos de React en el runner.
+      # Si SÍ tienes lockfile, puedes borrarlo y usar "npm ci" en el paso Install.
       - name: Pin Expo Web deps (React 18.2)
         run: |
           npm pkg set "dependencies.react=18.2.0"

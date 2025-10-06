@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths-ignore:
-      - 'docs/**'   # evita que el commit del propio deploy dispare de nuevo
+      - 'docs/**'   # evita loop al commitear /docs
   workflow_dispatch:
 
 permissions:
@@ -13,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +21,7 @@ jobs:
         with:
           node-version: '20'
 
-      # Si no usas package-lock.json, fijamos versiones web compatibles
+      # Igual que en CI: quita este bloque si tienes package-lock.json y prefieres npm ci
       - name: Pin Expo Web deps (React 18.2)
         run: |
           npm pkg set "dependencies.react=18.2.0"
@@ -33,22 +34,24 @@ jobs:
       - name: Install
         run: npm install --no-audit --no-fund --omit=optional
 
-      - name: Build web to docs/
-        run: npm run web:build:docs
-        # package.json debe tener:
-        # "web:build:docs": "expo export --platform web --output-dir docs"
+      # Construye a dist/ usando tu script existente
+      - name: Build web (to dist/)
+        run: npm run web:build:pages
+        # Tu script debe hacer: expo export --platform web --output-dir dist
+        # y luego patch-base.js para inyectar /<TU_REPO>/ y make-404.js
 
-      # 🔁 SOLO para repos bajo subruta (p. ej. /rn-sudoku/)
-      - name: Inject <base> and SPA fallback
+      # Prepara /docs para Pages
+      - name: Prepare /docs for Pages
         run: |
-          sed -i 's|<head>|<head><base href="/rn-sudoku/">|g' docs/index.html
-          cp docs/index.html docs/404.html
+          rm -rf docs
+          mkdir -p docs
+          cp -r dist/* docs/
 
-      # Desactiva Jekyll en Pages
+      # Desactiva Jekyll (evita que intente compilar SCSS/temas)
       - name: Disable Jekyll
         run: echo > docs/.nojekyll
 
-      # Commit de /docs a main (evita loop con [skip ci])
+      # Commit de /docs a main (con [skip ci] para no disparar el CI)
       - name: Commit docs to main
         uses: EndBug/add-and-commit@v9
         with:
