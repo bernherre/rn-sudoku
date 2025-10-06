@@ -33,6 +33,13 @@ jobs:
       - name: Install missing Expo web dependency
         run: npx expo install @expo/metro-runtime@~3.2.3
 
+      - name: Ensure valid PNG assets
+        run: |
+            mkdir -p assets
+            echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5YII=" | base64 -d > assets/icon.png
+            cp assets/icon.png assets/splash.png
+            cp assets/icon.png assets/favicon.png
+
       - name: Build web
         run: npm run web:build
 
