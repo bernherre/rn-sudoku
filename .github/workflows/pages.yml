@@ -39,7 +39,7 @@ jobs:
 
       # 🏗️ Exporta usando el config de CI (evita PNGs corruptos del repo)
       - name: Build web (to dist/)
-        run: npx expo export --platform web --config app.ci.json --output-dir dist
+        run: npx expo export --platform web --output-dir dist
 
       # 🔁 Ajusta base para Pages bajo /rn-sudoku y crea 404
       - name: Patch base and 404
