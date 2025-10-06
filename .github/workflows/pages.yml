@@ -1,22 +1,31 @@
-name: Deploy to GitHub Pages
+﻿name: Deploy Expo Web to GitHub Pages (no Jekyll)
+
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
 
-      # (si no tienes lockfile, fuerza versiones seguras)
-      - name: Pin react versions
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Si no llevas lockfile, fija versiones web compatibles
+      - name: Pin react versions (18.2)
         run: |
           npm pkg set "dependencies.react=18.2.0"
           npm pkg set "dependencies.react-dom=18.2.0"
@@ -28,77 +37,41 @@ jobs:
       - name: Install deps
         run: npm install --no-audit --no-fund --omit=optional
 
-      - name: Build web
+      # Asegura PNGs válidos para evitar CRC de Jimp (si no los tienes en el repo)
+      - name: Ensure valid PNG assets
+        run: |
+          mkdir -p assets
+          echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO4N9uUAAAAASUVORK5YII=" | base64 -d > assets/icon.png
+          cp assets/icon.png assets/splash.png
+          cp assets/icon.png assets/favicon.png
+
+      - name: Build web (Expo export)
         run: npm run web:build
 
-      - name: Ensure valid PNG assets (si hiciste esto en CI)
-        if: ${{ always() }}
-        run: |
-          [ -f assets/icon.png ] || (mkdir -p assets && cp dist/favicon.ico assets/icon.png || true)
-
-      - name: Inject <base> and SPA fallback (solo si subruta)
+      # ⬇️ Si tu sitio se publica bajo subruta (repo normal, por ej. /rn-sudoku/)
+      #    Deja este bloque. Si es usuario.github.io (raíz), comenta este bloque.
+      - name: Inject <base> and SPA fallback (subpath)
         run: |
           sed -i 's|<head>|<head><base href="/rn-sudoku/">|g' dist/index.html
           cp dist/index.html dist/404.html
 
+      # Evita que Pages intente Jekyll
       - name: Disable Jekyll
         run: echo > dist/.nojekyll
 
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v3
+      # Sube artefacto estático para Pages
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: docs
-          publish_branch: main
-name: Deploy to GitHub Pages
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+          path: dist
 
-permissions:
-  contents: write
-
-jobs:
-  build-and-deploy:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    needs: build
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-
-      # (si no tienes lockfile, fuerza versiones seguras)
-      - name: Pin react versions
-        run: |
-          npm pkg set "dependencies.react=18.2.0"
-          npm pkg set "dependencies.react-dom=18.2.0"
-          npm pkg set "overrides.react=18.2.0"
-          npm pkg set "overrides.react-dom=18.2.0"
-          npm pkg set "dependencies.react-native-web=0.19.10"
-          npm pkg set "dependencies.@expo/metro-runtime=~3.2.3"
-
-      - name: Install deps
-        run: npm install --no-audit --no-fund --omit=optional
-
-      - name: Build web
-        run: npm run web:build
-
-      - name: Ensure valid PNG assets (si hiciste esto en CI)
-        if: ${{ always() }}
-        run: |
-          [ -f assets/icon.png ] || (mkdir -p assets && cp dist/favicon.ico assets/icon.png || true)
-
-      - name: Inject <base> and SPA fallback (solo si subruta)
-        run: |
-          sed -i 's|<head>|<head><base href="/rn-sudoku/">|g' dist/index.html
-          cp dist/index.html dist/404.html
-
-      - name: Disable Jekyll
-        run: echo > dist/.nojekyll
-
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dist
-          publish_branch: main
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
