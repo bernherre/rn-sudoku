@@ -63,10 +63,11 @@ jobs:
       # DEBUG: asegúrate que base está inyectada y rutas correctas
       - name: Show index head (debug)
         run: |
-            head -n 30 docs/index.html
-            echo "---- scripts present ----"
+            head -n 40 docs/index.html
+            echo "---- first scripts ----"
             grep -oE '<script[^>]+src="[^"]+"' -m 5 docs/index.html || true
-
+            echo "---- first links ----"
+            grep -oE '<link[^>]+href="[^"]+"' -m 5 docs/index.html || true
 
       # Inyecta <base href="/rn-sudoku/"> y crea 404.html
       - name: Patch base and SPA 404
