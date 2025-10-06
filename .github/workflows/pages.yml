@@ -27,13 +27,26 @@ jobs:
           node-version: '20'
 
       - run: npm ci || npm install
-      - run: npm run web:build
+      - name: Fix assets for CI (patch app.json)
+        run: node scripts/ci-fix-assets.js
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Build web (to dist/)
+        run: npm run web:build:pages
+        # Ej.: "web:build:pages": "expo export --platform web --output-dir dist && node scripts/patch-base.js dist /rn-sudoku && node scripts/make-404.js dist"
+
+      - name: Prepare /docs for Pages
+        run: |
+          rm -rf docs
+          mkdir -p docs
+          cp -r dist/* docs/
+
+      - name: Disable Jekyll
+        run: echo > docs/.nojekyll
+
+      - name: Commit docs to main
+        uses: EndBug/add-and-commit@v9
         with:
-          path: docs
+          add: "docs"
+          message: "[skip ci] build: export web to /docs"
+          default_author: github_actions
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

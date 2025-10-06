@@ -9,8 +9,11 @@
     "web": "expo start --web",
     "test": "jest --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
+    "assets:local": "node scripts/make-local-assets.js",
     "web:build": "expo export --platform web",
-    "web:serve": "npx serve docs"
+    "web:serve": "npx serve docs",
+    "web:build:local": "npm run assets:local && expo export --platform web --config app.local.json --output-dir dist && node scripts/patch-base.js dist / && node scripts/make-404.js dist",
+    "preview:local": "npx serve dist -p 3000"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",

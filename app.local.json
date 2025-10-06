@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "rn-sudoku (local)",
+    "slug": "rn-sudoku-local",
+    "platforms": [ "ios", "android", "web" ],
+    "icon": "./assets/icon.local.png",
+    "splash": {
+      "image": "./assets/splash.local.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "userInterfaceStyle": "automatic",
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.local.png"
+    }
+  }
+}
