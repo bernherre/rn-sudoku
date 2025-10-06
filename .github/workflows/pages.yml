@@ -40,10 +40,11 @@ jobs:
       # Asegura PNGs válidos para evitar CRC de Jimp (si no los tienes en el repo)
       - name: Ensure valid PNG assets
         run: |
-          mkdir -p assets
-          echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO4N9uUAAAAASUVORK5YII=" | base64 -d > assets/icon.png
-          cp assets/icon.png assets/splash.png
-          cp assets/icon.png assets/favicon.png
+            mkdir -p assets
+            printf "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO4N9uUAAAAASUVORK5YII=" | base64 -d > assets/icon.png
+            cp assets/icon.png assets/splash.png
+            cp assets/icon.png assets/favicon.png
+
 
       - name: Build web (Expo export)
         run: npm run web:build
