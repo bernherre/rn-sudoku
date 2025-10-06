@@ -37,11 +37,36 @@ jobs:
       - name: Make CI config and assets
         run: node scripts/ci-make-config.js
 
-      # Export usando app.ci.json
+      - name: Make CI config and assets
+        run: node scripts/ci-make-config.js
+
       - name: Build web (to dist/)
         run: npx expo export --platform web --output-dir dist
         env:
           EXPO_APP_JSON: app.ci.json
+
+      # (Opcional) elimina service worker para evitar caches viejos
+      - name: Remove service worker (optional)
+        run: |
+          rm -f dist/sw.js || true
+          rm -f dist/registerSW.* || true
+
+      # Copia a /docs y desactiva Jekyll
+      - name: Prepare /docs for Pages
+        run: |
+            rm -rf docs
+            mkdir -p docs
+            cp -r dist/* docs/
+      - name: Disable Jekyll
+        run: echo > docs/.nojekyll
+
+      # DEBUG: asegúrate que base está inyectada y rutas correctas
+      - name: Show index head (debug)
+        run: |
+            head -n 30 docs/index.html
+            echo "---- scripts present ----"
+            grep -oE '<script[^>]+src="[^"]+"' -m 5 docs/index.html || true
+
 
       # Inyecta <base href="/rn-sudoku/"> y crea 404.html
       - name: Patch base and SPA 404

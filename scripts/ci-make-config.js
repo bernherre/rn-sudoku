@@ -32,6 +32,9 @@ const appCi = {
         web: {
             bundler: 'metro',
             favicon,
+            build: {
+                publicPath: '/rn-sudoku/'   // ⬅️ rutas bajo la subcarpeta del repo
+            }
         },
     },
 };
