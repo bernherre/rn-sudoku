@@ -1,19 +1,24 @@
-﻿name: Build Expo Web to /docs (Pages from branch)
+﻿name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [ main ]
-    paths-ignore:
-      - 'docs/**'   # evita loop al commitear /docs
-  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -21,40 +26,14 @@ jobs:
         with:
           node-version: '20'
 
-      # Igual que en CI: quita este bloque si tienes package-lock.json y prefieres npm ci
-      - name: Pin Expo Web deps (React 18.2)
-        run: |
-          npm pkg set "dependencies.react=18.2.0"
-          npm pkg set "dependencies.react-dom=18.2.0"
-          npm pkg set "overrides.react=18.2.0"
-          npm pkg set "overrides.react-dom=18.2.0"
-          npm pkg set "dependencies.react-native-web=0.19.10"
-          npm pkg set "dependencies.@expo/metro-runtime=~3.2.3"
+      - run: npm ci || npm install
+      - run: npm run web:build
 
-      - name: Install
-        run: npm install --no-audit --no-fund --omit=optional
-
-      # Construye a dist/ usando tu script existente
-      - name: Build web (to dist/)
-        run: npm run web:build:pages
-        # Tu script debe hacer: expo export --platform web --output-dir dist
-        # y luego patch-base.js para inyectar /<TU_REPO>/ y make-404.js
-
-      # Prepara /docs para Pages
-      - name: Prepare /docs for Pages
-        run: |
-          rm -rf docs
-          mkdir -p docs
-          cp -r dist/* docs/
-
-      # Desactiva Jekyll (evita que intente compilar SCSS/temas)
-      - name: Disable Jekyll
-        run: echo > docs/.nojekyll
-
-      # Commit de /docs a main (con [skip ci] para no disparar el CI)
-      - name: Commit docs to main
-        uses: EndBug/add-and-commit@v9
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          add: "docs"
-          message: "[skip ci] build: export web to /docs"
-          default_author: github_actions
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

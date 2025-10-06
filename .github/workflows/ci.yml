@@ -3,15 +3,11 @@ name: CI
 on:
   push:
     branches: [ main ]
-    paths-ignore:
-      - 'docs/**'        # evita que el commit de deploy vuelva a disparar el CI
   pull_request:
-    branches: [ main ]
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -19,22 +15,5 @@ jobs:
         with:
           node-version: '20'
 
-      # Si NO usas package-lock.json, deja este bloque para evitar conflictos de React en el runner.
-      # Si SÍ tienes lockfile, puedes borrarlo y usar "npm ci" en el paso Install.
-      - name: Pin Expo Web deps (React 18.2)
-        run: |
-          npm pkg set "dependencies.react=18.2.0"
-          npm pkg set "dependencies.react-dom=18.2.0"
-          npm pkg set "overrides.react=18.2.0"
-          npm pkg set "overrides.react-dom=18.2.0"
-          npm pkg set "dependencies.react-native-web=0.19.10"
-          npm pkg set "dependencies.@expo/metro-runtime=~3.2.3"
-
-      - name: Install
-        run: npm install --no-audit --no-fund --omit=optional
-
-      - name: Lint
-        run: npm run lint || echo "No lint script"
-
-      - name: Test
-        run: npm test
+      - run: npm ci || npm install
+      - run: npm run web:build
