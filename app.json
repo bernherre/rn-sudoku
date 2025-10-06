@@ -10,16 +10,14 @@
       "web"
     ],
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    //"icon": "./assets/icon.png",
+    //"splash": {
+    //  "image": "./assets/splash.png",
+    //  "resizeMode": "contain",
+    //  "backgroundColor": "#ffffff"    },
     "userInterfaceStyle": "automatic",
-    "web": {
-      "bundler": "metro",
-      "favicon": "./assets/favicon.png"
-    }
+   // "web": {
+   //   "bundler": "metro",
+   //   "favicon": "./assets/favicon.png"    }
   }
 }
