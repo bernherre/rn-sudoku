@@ -1,8 +1,10 @@
-﻿name: Build & Deploy Pages (main → gh-pages) [PWA]
+﻿name: Build & Deploy Pages (any branch → gh-pages) [PWA + Previews]
 
 on:
   push:
-    branches: [ main ]
+    branches: ["**"]         # publica en todas las ramas
+    branches-ignore:
+      - gh-pages             # evita loops
     paths-ignore:
       - "dist/**"
       - "docs/**"
@@ -15,26 +17,29 @@ concurrency:
   group: pages-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # SITE_BASE y DEST_DIR dinámicos:
+  # main -> /rn-sudoku    y destino '.'
+  # otras ramas -> /rn-sudoku/preview/<rama>   y destino 'preview/<rama>'
+  SITE_BASE: ${{ github.ref_name == 'main' && '/rn-sudoku' || format('/rn-sudoku/preview/{0}', github.ref_name) }}
+  DEST_DIR:  ${{ github.ref_name == 'main' && '.'          || format('preview/{0}', github.ref_name) }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1) Checkout con LFS
       - uses: actions/checkout@v4
         with:
           lfs: true
 
-      # 2) Node + cache npm
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
 
-      # 3) Install deps
       - name: Install
         run: npm ci --no-audit --no-fund
 
-      # 4) Higiene: quitar claves sueltas en package.json
       - name: Clean stray Expo keys in package.json
         run: |
           node - <<'NODE'
@@ -42,10 +47,8 @@ jobs:
           const p=JSON.parse(fs.readFileSync('package.json','utf8'));
           delete p.icon; delete p.web; delete p.splash;
           fs.writeFileSync('package.json', JSON.stringify(p,null,2));
-          console.log('package.json cleaned');
           NODE
 
-      # 5) Generar assets válidos + app.json mínimo (PWA on)
       - name: Generate CI assets and app.json (PWA)
         run: |
           sudo apt-get update && sudo apt-get install -y imagemagick
@@ -57,7 +60,7 @@ jobs:
           convert -size 2048x2048 xc:white PNG32:assets/splash.png
           cp assets/splash.png assets/splash.local.png
 
-          cat > app.json <<'JSON'
+          cat > app.json <<JSON
           {
             "expo": {
               "name": "rn-sudoku",
@@ -73,34 +76,28 @@ jobs:
               "web": {
                 "bundler": "metro",
                 "favicon": "./assets/favicon.png",
-                "build": { "publicPath": "/rn-sudoku/", "pwa": true },
+                "build": { "publicPath": "${SITE_BASE}/", "pwa": true },
                 "themeColor": "#ffffff"
               }
             }
           }
           JSON
 
-      # 6) Preferir Sharp
       - name: Enable sharp image pipeline
         run: npm i -D sharp sharp-cli
 
       - name: Check sharp presence
         run: node -e "require.resolve('sharp');console.log('sharp present ✅')"
 
-      # 7) Evitar cachés previas
       - name: Disable image utils cache
         run: echo "EXPO_IMAGE_UTILS_NO_CACHE=1" >> $GITHUB_ENV
 
-      # 8) Build
       - name: Build web (to dist/)
         run: npm run build:web
         env:
           EXPO_APP_JSON: app.json
 
-      # 9) Reescribir rutas absolutas, sw/manifest y favicon para subpath
       - name: Rewrite base paths for GH Pages + PWA
-        env:
-          SITE_BASE: /rn-sudoku
         run: |
           set -e
           SRC="assets/favicon.png"; [ -f "$SRC" ] || SRC="assets/icon.png"
@@ -146,24 +143,19 @@ jobs:
                 });
               }
               fs.writeFileSync(p, JSON.stringify(m, null, 2));
-              console.log('Patched manifest.json with start_url/scope:', m.start_url, m.scope);
             }
             NODE
           fi
 
-          grep -nE '(_expo\/static\/js|rel="icon"|rel="manifest"|sw\\.js)' dist/index.html || true
-          [ -f dist/manifest.json ] && cat dist/manifest.json || true
-
-      # 10) SPA fallback + nojekyll
       - name: SPA fallback & nojekyll
         run: |
           echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
           touch dist/.nojekyll
 
-      # 11) Deploy a gh-pages
-      - name: Deploy to gh-pages branch
+      - name: Deploy to gh-pages (root for main; preview/<branch> for others)
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          force_orphan: true
+          destination_dir: ${{ env.DEST_DIR }}
+          keep_files: true
