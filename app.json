@@ -13,7 +13,7 @@
     //  "backgroundColor": "#ffffff"    },
     "userInterfaceStyle": "automatic",
     "web": {
-      //"bundler": "metro",
+      "bundler": "metro",
       //"favicon": "./assets/favicon.png",
       "build": {
         "output": "docs",

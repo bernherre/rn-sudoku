@@ -4,8 +4,8 @@
   "private": true,
   "homepage": "https://bernherre.github.io/rn-sudoku",
   "scripts": {
-    "predeploy": "npm run web:build",
-    "deploy": "gh-pages -d build",
+    "predeploy": "expo export --platform web --output-dir dist",
+    "deploy": "gh-pages --nojekyll -d dist",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
