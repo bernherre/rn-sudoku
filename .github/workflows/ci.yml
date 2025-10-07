@@ -3,17 +3,16 @@
 on:
   push:
     branches:
-        - main   
-        - dev
-        - origin/dev
+      - main
+      - dev
+      - origin/dev
     branches-ignore:
-        - gh-pages      # evita loops por el branch de Pages
+      - gh-pages      # evita loops por el branch de Pages
     paths-ignore:
-        - 'dist/**'
-        - 'docs/**'
+      - 'dist/**'
+      - 'docs/**'
   pull_request:
-    types: [opened, reopened]
-
+    ["opened","reopened"]
 permissions:
   contents: write
 

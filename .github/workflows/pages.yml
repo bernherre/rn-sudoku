@@ -1,11 +1,9 @@
-﻿name: Build Expo Web to /docs (Pages from branch)
+﻿name: Build & Deploy Expo Web to gh-pages
 
 on:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - 'docs/**'
-  workflow_dispatch:
+    branches:
+      - main          # todas las ramas
 
 permissions:
   contents: write
@@ -14,48 +12,98 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # 1) Checkout con LFS
       - uses: actions/checkout@v4
         with:
-              fetch-depth: 0  # Necesario para gh-pages 
-              lfs: true  # Si usas Git LFS
+          lfs: true
+
+      # 2) Node + cache npm
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       # 3) Install deps
       - name: Install
         run: npm ci --no-audit --no-fund
 
-      - name: Make clean PNG assets for CI
+      # 4) (Higiene) borra claves sueltas que puedan confundir a Expo
+      - name: Clean stray Expo keys in package.json
         run: |
-            mkdir -p assets
-            BASE64_PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAObl+Q8AAAAASUVORK5CYII="
-            echo "$BASE64_PNG" | base64 -d > assets/icon.png
-            cp assets/icon.png assets/favicon.png
-            cp assets/icon.png assets/splash.png
+          node - <<'NODE'
+          const fs=require('fs');
+          const p=JSON.parse(fs.readFileSync('package.json','utf8'));
+          delete p.icon; delete p.web; delete p.splash;
+          fs.writeFileSync('package.json', JSON.stringify(p,null,2));
+          console.log('package.json cleaned');
+          NODE
 
-      - name: Check assets
+      # 5) Genera assets CI válidos y escribe app.json limpio (override para este build)
+      - name: Generate CI assets and app.json
         run: |
-            git lfs ls-files || true
-            ls -l assets
-            file assets/*.png || true
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          mkdir -p assets
+          # icon 1024x1024 transparente
+          convert -size 1024x1024 xc:none PNG32:assets/icon.png
+          cp assets/icon.png assets/icon.local.png
+          # favicon 512x512 derivado
+          convert assets/icon.png -resize 512x512 PNG32:assets/favicon.png
+          cp assets/favicon.png assets/favicon.local.png
+          # splash 2048x2048 blanco
+          convert -size 2048x2048 xc:white PNG32:assets/splash.png
+          cp assets/splash.png assets/splash.local.png
 
+          # app.json minimal apuntando a estos assets
+          cat > app.json <<'JSON'
+          {
+            "expo": {
+              "name": "rn-sudoku",
+              "slug": "rn-sudoku",
+              "platforms": ["ios", "android", "web"],
+              "userInterfaceStyle": "automatic",
+              "icon": "./assets/icon.png",
+              "splash": {
+                "image": "./assets/splash.png",
+                "resizeMode": "contain",
+                "backgroundColor": "#ffffff"
+              },
+              "web": {
+                "bundler": "metro",
+                "favicon": "./assets/favicon.png",
+                "build": { "publicPath": "/rn-sudoku/" }
+              }
+            }
+          }
+          JSON
 
+      # 6) (Opcional) verifica que sean PNG reales y no punteros LFS
+      - name: Verify assets are real PNGs
+        run: |
+          git lfs ls-files || true
+          file assets/*.png || true
+
+      # 7) Desactiva caché de image-utils por si quedó algo viejo
+      - name: Disable image utils cache
+        run: echo "EXPO_IMAGE_UTILS_NO_CACHE=1" >> $GITHUB_ENV
+
+      # 8) Build Expo Web -> dist/
       - name: Build web (to dist/)
         run: npm run build:web
         env:
           EXPO_APP_JSON: app.json
 
+      # 9) SPA fallback + nojekyll
       - name: SPA fallback & nojekyll
         run: |
-            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
-            touch dist/.nojekyll
-            rm -f dist/sw.js dist/registerSW.* || true
+          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
+          touch dist/.nojekyll
+          rm -f dist/sw.js dist/registerSW.* || true
 
+      # 10) Deploy al branch gh-pages (solo si es main)
       - name: Deploy to gh-pages branch
+        if: github.ref_name == 'main'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           force_orphan: true
-
