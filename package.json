@@ -5,7 +5,7 @@
   "homepage": "https://bernherre.github.io/rn-sudoku",
   "scripts": {
     "deploy": "gh-pages --nojekyll -d dist",
-    "predeploy": "expo export -p web",
+    "predeploy": "npx expo export --platform web --output-dir dist",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
