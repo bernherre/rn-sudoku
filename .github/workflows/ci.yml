@@ -95,57 +95,60 @@ jobs:
         env:
           EXPO_APP_JSON: app.json
 
-      - name: Rewrite base paths for GH Pages + PWA
+      - name: Rewrite base paths for GH Pages + PWA (no heredocs)
         env:
           SITE_BASE: /rn-sudoku
         run: |
-          set -e
-          SRC="assets/favicon.png"; [ -f "$SRC" ] || SRC="assets/icon.png"
-          cp "$SRC" dist/favicon.png || true
-          sudo apt-get update && sudo apt-get install -y imagemagick
-          convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
+            set -e
+            # 1) Favicon dentro del sitio
+            SRC="assets/favicon.png"; [ -f "$SRC" ] || SRC="assets/icon.png"
+            cp "$SRC" dist/favicon.png || true
+            sudo apt-get update && sudo apt-get install -y imagemagick jq
+            convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
 
-          find dist -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' -o -name '*.css' \) -print0 | xargs -0 sed -i \
-            -e "s:\"/_expo/:\"${SITE_BASE}/_expo/:g" \
-            -e "s:'/_expo/:'${SITE_BASE}/_expo/:g" \
-            -e "s:\"/sw\\.js\":\"${SITE_BASE}/sw.js\":g" \
-            -e "s:'/sw\\.js':'${SITE_BASE}/sw.js':g" \
-            -e "s:\"/manifest\\.json\":\"${SITE_BASE}/manifest.json\":g" \
-            -e "s:'/manifest\\.json':'${SITE_BASE}/manifest.json':g" \
-            -e "s:href=[\"']/favicon\\.ico[\"']:href=\"${SITE_BASE}/favicon.ico\":g"
+            # 2) Reescritura masiva de rutas absolutas en todo dist/
+            #   "/_expo/..."        -> "${SITE_BASE}/_expo/..."
+            #   "/sw.js"            -> "${SITE_BASE}/sw.js"
+            #   "/manifest.json"    -> "${SITE_BASE}/manifest.json"
+            #   "href='favicon.ico'"-> "${SITE_BASE}/favicon.ico"
+            find dist -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' -o -name '*.css' \) -print0 | xargs -0 sed -i \
+              -e "s:\"/_expo/:\"${SITE_BASE}/_expo/:g" \
+              -e "s:'/_expo/:'${SITE_BASE}/_expo/:g" \
+              -e "s:\"/sw\\.js\":\"${SITE_BASE}/sw.js\":g" \
+              -e "s:'/sw\\.js':'${SITE_BASE}/sw.js':g" \
+              -e "s:\"/manifest\\.json\":\"${SITE_BASE}/manifest.json\":g" \
+              -e "s:'/manifest\\.json':'${SITE_BASE}/manifest.json':g" \
+              -e "s:href=[\"']/favicon\\.ico[\"']:href=\"${SITE_BASE}/favicon.ico\":g"
 
-          node - <<'NODE'
-          const fs=require('fs'); const SITE_BASE=process.env.SITE_BASE||'';
-          for (const f of ['dist/index.html','dist/404.html']) {
-            if (!fs.existsSync(f)) continue;
-            let html=fs.readFileSync(f,'utf8');
-            html=html.replace(/<link[^>]*rel=["']icon["'][^>]*>\s*/gi,'');
-            html=html.replace(/<link[^>]*rel=["']manifest["'][^>]*>\s*/gi,'');
-            if (html.includes('</head>')) {
-              html=html.replace('</head>', `  <link rel="icon" href="${SITE_BASE}/favicon.ico"/>\n  <link rel="manifest" href="${SITE_BASE}/manifest.json"/>\n</head>`);
-            }
-            fs.writeFileSync(f, html);
-          }
-          NODE
+            # 3) Inyectar <link rel="icon"> y <link rel="manifest"> en index/404
+            for f in dist/index.html dist/404.html; do
+              [ -f "$f" ] || continue
+              # quitar <link rel="icon"> y <link rel="manifest"> existentes
+              perl -0777 -pe "s/<link[^>]*rel=['\"]icon['\"][^>]*>\s*//gi" -i "$f"
+              perl -0777 -pe "s/<link[^>]*rel=['\"]manifest['\"][^>]*>\s*//gi" -i "$f"
+              # inyectar los correctos antes de </head>
+              perl -0777 -pe "s#</head>#  <link rel=\"icon\" href=\"$SITE_BASE/favicon.ico\"/>\n  <link rel=\"manifest\" href=\"$SITE_BASE/manifest.json\"/>\n</head>#i" -i "$f"
+              # asegurar que cualquier src|href="/_expo/..." lleve el subpath
+              perl -0777 -pe "s#(src|href)=[\"']\/(_expo\/[^\"']+)[\"']#\\1=\"$SITE_BASE/\\2\"#gi" -i "$f"
+            done
 
-          if [ -f dist/manifest.json ]; then
-            node - <<'NODE'
-            const fs=require('fs'); const p='dist/manifest.json';
-            const SITE_BASE=process.env.SITE_BASE||'/';
-            if (fs.existsSync(p)) {
-              const m=JSON.parse(fs.readFileSync(p,'utf8'));
-              m.start_url = SITE_BASE + '/';
-              m.scope     = SITE_BASE + '/';
-              if (Array.isArray(m.icons)) {
-                m.icons = m.icons.map(ic=>{
-                  if (typeof ic.src==='string' && ic.src.startsWith('/')) ic.src = SITE_BASE + ic.src;
-                  return ic;
-                });
-              }
-              fs.writeFileSync(p, JSON.stringify(m, null, 2));
-            }
-            NODE
-          fi
+            # 4) Ajustar manifest.json (start_url y scope al subpath)
+            if [ -f dist/manifest.json ]; then
+              jq --arg base "$SITE_BASE" '
+                .start_url = ($base + "/") |
+                .scope     = ($base + "/") |
+                (.icons // []) |=
+                  map( if (.src|type=="string" and (.src|startswith("/")))
+                         then (.src = ($base + .src))
+                         else .
+                       end )
+              ' dist/manifest.json > dist/manifest.tmp && mv dist/manifest.tmp dist/manifest.json
+            fi
+
+            # 5) Debug
+            grep -nE '(_expo\/static\/js|rel="icon"|rel="manifest"|sw\.js)' dist/index.html || true
+            [ -f dist/manifest.json ] && cat dist/manifest.json || true
+
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
