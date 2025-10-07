@@ -22,12 +22,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-
-      - name: Check assets
-        run: |
-            ls -l assets
-            file assets/icon.png
-        
+      # 3) Install deps
       - name: Install
         run: npm ci --no-audit --no-fund
 
@@ -38,6 +33,13 @@ jobs:
             echo "$BASE64_PNG" | base64 -d > assets/icon.png
             cp assets/icon.png assets/favicon.png
             cp assets/icon.png assets/splash.png
+
+      - name: Check assets
+        run: |
+            git lfs ls-files || true
+            ls -l assets
+            file assets/*.png || true
+
 
       - name: Build web (to dist/)
         run: npm run build:web
