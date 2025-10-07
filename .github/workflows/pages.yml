@@ -1,4 +1,4 @@
-﻿name: Build & Deploy Pages (main → gh-pages)
+﻿name: Build & Deploy Pages (main → gh-pages) [PWA]
 
 on:
   push:
@@ -30,11 +30,11 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      # 3) Instalar deps
+      # 3) Install deps
       - name: Install
         run: npm ci --no-audit --no-fund
 
-      # 4) Higiene: eliminar claves Expo sueltas en package.json
+      # 4) Higiene: quitar claves sueltas en package.json
       - name: Clean stray Expo keys in package.json
         run: |
           node - <<'NODE'
@@ -45,8 +45,8 @@ jobs:
           console.log('package.json cleaned');
           NODE
 
-      # 5) Generar assets válidos + app.json mínimo
-      - name: Generate CI assets and app.json
+      # 5) Generar assets válidos + app.json mínimo (PWA on)
+      - name: Generate CI assets and app.json (PWA)
         run: |
           sudo apt-get update && sudo apt-get install -y imagemagick
           mkdir -p assets
@@ -73,7 +73,8 @@ jobs:
               "web": {
                 "bundler": "metro",
                 "favicon": "./assets/favicon.png",
-                "build": { "publicPath": "/rn-sudoku/", "pwa": false }
+                "build": { "publicPath": "/rn-sudoku/", "pwa": true },
+                "themeColor": "#ffffff"
               }
             }
           }
@@ -90,48 +91,76 @@ jobs:
       - name: Disable image utils cache
         run: echo "EXPO_IMAGE_UTILS_NO_CACHE=1" >> $GITHUB_ENV
 
-      # 8) Build Expo Web -> dist/
+      # 8) Build
       - name: Build web (to dist/)
         run: npm run build:web
         env:
           EXPO_APP_JSON: app.json
 
-      - name: Rewrite absolute paths for GH Pages + ship favicon
+      # 9) Reescribir rutas absolutas, sw/manifest y favicon para subpath
+      - name: Rewrite base paths for GH Pages + PWA
         env:
-            SITE_BASE: /rn-sudoku
+          SITE_BASE: /rn-sudoku
         run: |
-            set -e
-            # 1) Favicon dentro del subpath
-            SRC="assets/favicon.png"; [ -f "$SRC" ] || SRC="assets/icon.png"
-            cp "$SRC" dist/favicon.png || true
-            sudo apt-get update && sudo apt-get install -y imagemagick
-            convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
+          set -e
+          SRC="assets/favicon.png"; [ -f "$SRC" ] || SRC="assets/icon.png"
+          cp "$SRC" dist/favicon.png || true
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
 
-            # 2) Reescritura masiva en todo dist:
-            #    "/_expo/..."  -> "/rn-sudoku/_expo/..."
-            #    También arregla <link rel="icon"> a /rn-sudoku/favicon.ico
-            find dist -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' -o -name '*.css' \) -print0 | xargs -0 sed -i \
-              -e "s:\"/_expo/:\"${SITE_BASE}/_expo/:g" \
-              -e "s:'/_expo/:'${SITE_BASE}/_expo/:g" \
-              -e "s:href=[\"']/favicon\\.ico[\"']:href=\"${SITE_BASE}/favicon.ico\":g"
+          find dist -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' -o -name '*.css' \) -print0 | xargs -0 sed -i \
+            -e "s:\"/_expo/:\"${SITE_BASE}/_expo/:g" \
+            -e "s:'/_expo/:'${SITE_BASE}/_expo/:g" \
+            -e "s:\"/sw\\.js\":\"${SITE_BASE}/sw.js\":g" \
+            -e "s:'/sw\\.js':'${SITE_BASE}/sw.js':g" \
+            -e "s:\"/manifest\\.json\":\"${SITE_BASE}/manifest.json\":g" \
+            -e "s:'/manifest\\.json':'${SITE_BASE}/manifest.json':g" \
+            -e "s:href=[\"']/favicon\\.ico[\"']:href=\"${SITE_BASE}/favicon.ico\":g"
 
-            # 3) Asegura el <link rel="icon"> también en index/404 (por si no existía)
+          node - <<'NODE'
+          const fs=require('fs'); const SITE_BASE=process.env.SITE_BASE||'';
+          for (const f of ['dist/index.html','dist/404.html']) {
+            if (!fs.existsSync(f)) continue;
+            let html=fs.readFileSync(f,'utf8');
+            html=html.replace(/<link[^>]*rel=["']icon["'][^>]*>\s*/gi,'');
+            html=html.replace(/<link[^>]*rel=["']manifest["'][^>]*>\s*/gi,'');
+            if (html.includes('</head>')) {
+              html=html.replace('</head>', `  <link rel="icon" href="${SITE_BASE}/favicon.ico"/>\n  <link rel="manifest" href="${SITE_BASE}/manifest.json"/>\n</head>`);
+            }
+            fs.writeFileSync(f, html);
+          }
+          NODE
+
+          if [ -f dist/manifest.json ]; then
             node - <<'NODE'
-            const fs=require('fs'); const SITE_BASE=process.env.SITE_BASE||'';
-            for (const f of ['dist/index.html','dist/404.html']) {
-              if (!fs.existsSync(f)) continue;
-              let html=fs.readFileSync(f,'utf8');
-              html=html.replace(/<link[^>]*rel=["']icon["'][^>]*>\s*/gi,'');
-              if (html.includes('</head>')) {
-                html=html.replace('</head>', `  <link rel="icon" href="${SITE_BASE}/favicon.ico"/>\n</head>`);
+            const fs=require('fs'); const p='dist/manifest.json';
+            const SITE_BASE=process.env.SITE_BASE||'/';
+            if (fs.existsSync(p)) {
+              const m=JSON.parse(fs.readFileSync(p,'utf8'));
+              m.start_url = SITE_BASE + '/';
+              m.scope     = SITE_BASE + '/';
+              if (Array.isArray(m.icons)) {
+                m.icons = m.icons.map(ic=>{
+                  if (typeof ic.src==='string' && ic.src.startsWith('/')) ic.src = SITE_BASE + ic.src;
+                  return ic;
+                });
               }
-              fs.writeFileSync(f, html);
+              fs.writeFileSync(p, JSON.stringify(m, null, 2));
+              console.log('Patched manifest.json with start_url/scope:', m.start_url, m.scope);
             }
             NODE
+          fi
 
-            # 4) Debug: muestra líneas con _expo y favicon tras parcheo
-            grep -nE '(_expo\/static\/js|rel="icon")' dist/index.html || true
-       # 11) Deploy a gh-pages
+          grep -nE '(_expo\/static\/js|rel="icon"|rel="manifest"|sw\\.js)' dist/index.html || true
+          [ -f dist/manifest.json ] && cat dist/manifest.json || true
+
+      # 10) SPA fallback + nojekyll
+      - name: SPA fallback & nojekyll
+        run: |
+          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
+          touch dist/.nojekyll
+
+      # 11) Deploy a gh-pages
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v3
         with:

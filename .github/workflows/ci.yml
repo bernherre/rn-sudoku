@@ -1,4 +1,4 @@
-﻿name: CI — Expo Web (all branches & PR)
+﻿name: CI — Expo Web (all branches & PR) [PWA]
 
 on:
   push:
@@ -26,22 +26,22 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1) Checkout con LFS (por si hay PNGs en Git LFS)
+      # 1) Checkout con LFS
       - uses: actions/checkout@v4
         with:
           lfs: true
 
-      # 2) Node + cache npm
+      # 2) Node + cache
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
 
-      # 3) Instalar deps
+      # 3) Install deps
       - name: Install
         run: npm ci --no-audit --no-fund
 
-      # 4) Higiene: elimina claves Expo sueltas en package.json (usar sólo app.json)
+      # 4) Higiene: quitar claves Expo sueltas en package.json
       - name: Clean stray Expo keys in package.json
         run: |
           node - <<'NODE'
@@ -52,8 +52,8 @@ jobs:
           console.log('package.json cleaned');
           NODE
 
-      # 5) Generar assets válidos + app.json mínimo (para evitar CRC)
-      - name: Generate CI assets and app.json
+      # 5) Generar assets válidos + app.json mínimo (PWA on)
+      - name: Generate CI assets and app.json (PWA)
         run: |
           sudo apt-get update && sudo apt-get install -y imagemagick
           mkdir -p assets
@@ -67,7 +67,7 @@ jobs:
           convert -size 2048x2048 xc:white PNG32:assets/splash.png
           cp assets/splash.png assets/splash.local.png
 
-          # app.json limpio con publicPath del subpath
+          # app.json con PWA activado y publicPath del subpath
           cat > app.json <<'JSON'
           {
             "expo": {
@@ -84,7 +84,8 @@ jobs:
               "web": {
                 "bundler": "metro",
                 "favicon": "./assets/favicon.png",
-                "build": { "publicPath": "/rn-sudoku/", "pwa": false }
+                "build": { "publicPath": "/rn-sudoku/", "pwa": true },
+                "themeColor": "#ffffff"
               }
             }
           }
@@ -107,44 +108,73 @@ jobs:
         env:
           EXPO_APP_JSON: app.json
 
-      - name: Rewrite absolute paths for GH Pages + ship favicon
+      # 9) Reescribir rutas absolutas, sw/manifest y favicon para subpath
+      - name: Rewrite base paths for GH Pages + PWA
         env:
           SITE_BASE: /rn-sudoku
         run: |
-            set -e
-            # 1) Favicon dentro del subpath
-            SRC="assets/favicon.png"; [ -f "$SRC" ] || SRC="assets/icon.png"
-            cp "$SRC" dist/favicon.png || true
-            sudo apt-get update && sudo apt-get install -y imagemagick
-            convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
+          set -e
+          # Favicon dentro del sitio
+          SRC="assets/favicon.png"; [ -f "$SRC" ] || SRC="assets/icon.png"
+          cp "$SRC" dist/favicon.png || true
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
 
-            # 2) Reescritura masiva en todo dist:
-            #    "/_expo/..."  -> "/rn-sudoku/_expo/..."
-            #    También arregla <link rel="icon"> a /rn-sudoku/favicon.ico
-            find dist -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' -o -name '*.css' \) -print0 | xargs -0 sed -i \
-              -e "s:\"/_expo/:\"${SITE_BASE}/_expo/:g" \
-              -e "s:'/_expo/:'${SITE_BASE}/_expo/:g" \
-              -e "s:href=[\"']/favicon\\.ico[\"']:href=\"${SITE_BASE}/favicon.ico\":g"
+          # Reescritura masiva en HTML/JS/JSON/CSS:
+          #  "/_expo/..."  -> "/rn-sudoku/_expo/..."
+          #  "/sw.js"      -> "/rn-sudoku/sw.js"
+          #  "/manifest.json" -> "/rn-sudoku/manifest.json"
+          find dist -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' -o -name '*.css' \) -print0 | xargs -0 sed -i \
+            -e "s:\"/_expo/:\"${SITE_BASE}/_expo/:g" \
+            -e "s:'/_expo/:'${SITE_BASE}/_expo/:g" \
+            -e "s:\"/sw\\.js\":\"${SITE_BASE}/sw.js\":g" \
+            -e "s:'/sw\\.js':'${SITE_BASE}/sw.js':g" \
+            -e "s:\"/manifest\\.json\":\"${SITE_BASE}/manifest.json\":g" \
+            -e "s:'/manifest\\.json':'${SITE_BASE}/manifest.json':g" \
+            -e "s:href=[\"']/favicon\\.ico[\"']:href=\"${SITE_BASE}/favicon.ico\":g"
 
-            # 3) Asegura el <link rel="icon"> también en index/404 (por si no existía)
+          # Inyectar <link rel="icon"> y <link rel="manifest"> si faltaran
+          node - <<'NODE'
+          const fs=require('fs'); const SITE_BASE=process.env.SITE_BASE||'';
+          for (const f of ['dist/index.html','dist/404.html']) {
+            if (!fs.existsSync(f)) continue;
+            let html=fs.readFileSync(f,'utf8');
+            html=html.replace(/<link[^>]*rel=["']icon["'][^>]*>\s*/gi,'');
+            html=html.replace(/<link[^>]*rel=["']manifest["'][^>]*>\s*/gi,'');
+            if (html.includes('</head>')) {
+              html=html.replace('</head>', `  <link rel="icon" href="${SITE_BASE}/favicon.ico"/>\n  <link rel="manifest" href="${SITE_BASE}/manifest.json"/>\n</head>`);
+            }
+            fs.writeFileSync(f, html);
+          }
+          NODE
+
+          # Ajustar manifest: start_url y scope al subpath
+          if [ -f dist/manifest.json ]; then
             node - <<'NODE'
-            const fs=require('fs'); const SITE_BASE=process.env.SITE_BASE||'';
-            for (const f of ['dist/index.html','dist/404.html']) {
-              if (!fs.existsSync(f)) continue;
-              let html=fs.readFileSync(f,'utf8');
-              html=html.replace(/<link[^>]*rel=["']icon["'][^>]*>\s*/gi,'');
-              if (html.includes('</head>')) {
-                html=html.replace('</head>', `  <link rel="icon" href="${SITE_BASE}/favicon.ico"/>\n</head>`);
+            const fs=require('fs'); const p='dist/manifest.json';
+            const SITE_BASE=process.env.SITE_BASE||'/';
+            if (fs.existsSync(p)) {
+              const m=JSON.parse(fs.readFileSync(p,'utf8'));
+              m.start_url = SITE_BASE + '/';
+              m.scope     = SITE_BASE + '/';
+              // Asegura que los icon src queden con el subpath si fueran absolutos
+              if (Array.isArray(m.icons)) {
+                m.icons = m.icons.map(ic=>{
+                  if (typeof ic.src==='string' && ic.src.startsWith('/')) ic.src = SITE_BASE + ic.src;
+                  return ic;
+                });
               }
-              fs.writeFileSync(f, html);
+              fs.writeFileSync(p, JSON.stringify(m, null, 2));
+              console.log('Patched manifest.json with start_url/scope:', m.start_url, m.scope);
             }
             NODE
+          fi
 
-            # 4) Debug: muestra líneas con _expo y favicon tras parcheo
-            grep -nE '(_expo\/static\/js|rel="icon")' dist/index.html || true
+          # Debug post-parcheo
+          grep -nE '(_expo\/static\/js|rel="icon"|rel="manifest"|sw\\.js)' dist/index.html || true
+          [ -f dist/manifest.json ] && cat dist/manifest.json || true
 
-
-      # 10) Publicar artefacto para revisar en PRs
+      # 10) Publicar artefacto (útil en PR)
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
