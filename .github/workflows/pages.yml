@@ -96,6 +96,37 @@ jobs:
         env:
           EXPO_APP_JSON: app.json
 
+      - name: Ship favicon and inject correct link
+        run: |
+          set -e
+          # Fuente: usa el favicon.png generado en CI; si no, cae al icon.png
+          SRC="assets/favicon.png"
+          [ -f "$SRC" ] || SRC="assets/icon.png"
+
+          # Copia PNG al root del sitio exportado
+          cp "$SRC" dist/favicon.png || true
+
+          # Genera favicon.ico multi-tamaño (si ImageMagick está disponible)
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
+
+          # Inyecta <link rel="icon" href="/rn-sudoku/favicon.ico"> en index.html (+404.html si existe)
+          node - <<'NODE'
+          const fs=require('fs');
+          function patch(file){
+            if(!fs.existsSync(file)) return;
+            let html=fs.readFileSync(file,'utf8');
+            // quita posibles <link rel="icon"> previos
+            html=html.replace(/<link[^>]*rel=["']icon["'][^>]*>\s*/gi,'');
+            // inserta nuestro link apuntando al subpath correcto
+            html=html.replace('</head>','  <link rel="icon" href="/rn-sudoku/favicon.ico"/>\n</head>');
+            fs.writeFileSync(file,html);
+          }
+          patch('dist/index.html');
+          if (fs.existsSync('dist/404.html')) patch('dist/404.html');
+          NODE
+
+
       # 9) SPA fallback + nojekyll
       - name: SPA fallback & nojekyll
         run: |

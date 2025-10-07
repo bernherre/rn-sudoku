@@ -150,6 +150,28 @@ jobs:
         env:
           EXPO_APP_JSON: app.json
 
+      - name: Ship favicon and inject correct link
+        run: |
+          set -e
+          SRC="assets/favicon.png"
+          [ -f "$SRC" ] || SRC="assets/icon.png"
+          cp "$SRC" dist/favicon.png || true
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
+          node - <<'NODE'
+          const fs=require('fs');
+          function patch(file){
+            if(!fs.existsSync(file)) return;
+            let html=fs.readFileSync(file,'utf8');
+            html=html.replace(/<link[^>]*rel=["']icon["'][^>]*>\s*/gi,'');
+            html=html.replace('</head>','  <link rel="icon" href="/rn-sudoku/favicon.ico"/>\n</head>');
+            fs.writeFileSync(file,html);
+          }
+          patch('dist/index.html');
+          if (fs.existsSync('dist/404.html')) patch('dist/404.html');
+          NODE
+
+
       # 12) Publicar artefacto (útil en PR)
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
