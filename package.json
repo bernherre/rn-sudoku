@@ -4,7 +4,8 @@
   "private": true,
   "homepage": "https://bernherre.github.io/rn-sudoku",
   "scripts": {
-    "build:web": "expo export --platform web --output-dir dist -c",
+    "predeploy": "expo export --platform web --output-dir dist",
+    "deploy": "gh-pages --nojekyll -d dist",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -12,7 +13,9 @@
     "test": "jest --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
     "assets:local": "node scripts/make-local-assets.js",
-    "web:serve": "npx serve dist",
+    "web:build": "expo export --platform web",
+    "web:serve": "npx serve docs",
+    "web:build:local": "npm run assets:local && expo export --platform web --config app.local.json --output-dir dist && node scripts/patch-base.js dist / && node scripts/make-404.js dist",
     "preview:local": "npx serve dist -p 3000"
   },
   "dependencies": {
