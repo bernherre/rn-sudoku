@@ -34,7 +34,7 @@ jobs:
       - name: Verify LFS and assets presence
         run: |
           git lfs ls-files || true
-          ls -l assets || true
+          file assets/*.png || true
 
       # 4) Diagnóstico: encontrar PNGs corruptos
       - name: Diagnose PNGs (Jimp)
@@ -60,15 +60,21 @@ jobs:
           echo "has_bad=$( [ -s bad_pngs.txt ] && echo true || echo false )" >> $GITHUB_OUTPUT
           echo "Bad PNGs (if any):"; cat bad_pngs.txt || true
 
-      # 5) Re-encodar SOLO los malos (si hay)
+      # 5) Re-encodar SOLO los malos (tolerante a fallos)
       - name: Re-encode bad PNGs with ImageMagick
         if: steps.diag.outputs.has_bad == 'true'
+        continue-on-error: true
         run: |
           sudo apt-get update && sudo apt-get install -y imagemagick
           while IFS= read -r f; do
             [ -f "$f" ] || continue
             echo "Fixing $f"
-            mogrify -strip "$f"
+            if file "$f" | grep -qi 'png image'; then
+              # Re-encode a un temporal y reemplaza solo si logra convertir
+              convert "$f" -strip PNG32:"$f.tmp" && mv "$f.tmp" "$f" || echo "convert failed, will rely on fallback: $f"
+            else
+              echo "Not recognized as PNG (maybe LFS pointer). Will rely on fallback: $f"
+            fi
           done < bad_pngs.txt
 
       # 6) Rechequeo
@@ -141,18 +147,3 @@ jobs:
         run: npm run web:build
         env:
           EXPO_APP_JSON: app.json
-
-      # 11) SPA fallback + nojekyll
-      - name: SPA fallback & nojekyll
-        run: |
-          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
-          touch dist/.nojekyll
-          rm -f dist/sw.js dist/registerSW.* || true
-
-      # 12) Deploy al branch gh-pages
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          force_orphan: true
