@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -18,11 +18,68 @@ jobs:
       - name: Make clean PNG assets for CI
         run: |
           mkdir -p assets
-          # 1x1 PNG transparente (v�lido)
+          # 1x1 PNG transparente (válido)
           BASE64_PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAObl+Q8AAAAASUVORK5CYII="
           echo "$BASE64_PNG" | base64 -d > assets/icon.png
           cp assets/icon.png assets/favicon.png
           cp assets/icon.png assets/splash.png
+      # 0) (Opcional pero útil) Fuerza que no use caché de image-utils
+      - name: Set no-cache for image utils
+        run: echo "EXPO_IMAGE_UTILS_NO_CACHE=1" >> $GITHUB_ENV
+
+      # 1) Diagnóstico: encuentra los PNG corruptos con Jimp y muestra sus rutas
+      - name: Diagnose corrupt PNGs
+        run: |
+            node - <<'NODE'
+            const fs=require('fs'); const path=require('path'); const Jimp=require('jimp-compact');
+            const walk=(d)=>fs.readdirSync(d,{withFileTypes:true}).flatMap(de=>{
+              const p=path.join(d,de.name);
+              return de.isDirectory()?walk(p):p;
+            });
+            const files=walk(process.cwd()).filter(f=>f.toLowerCase().endsWith('.png'));
+            (async()=>{
+              let bad=[];
+              for (const f of files) {
+                try { await Jimp.read(f); }
+                catch(e){ console.log('BAD PNG:', f, '\n  ->', e.message); bad.push(f); }
+              }
+              if (bad.length===0){ console.log('All PNGs look OK to Jimp'); }
+              else { console.log('Corrupt PNGs:', bad.length); process.exit(2); }
+            })();
+            NODE
+        continue-on-error: true
+
+      # 2) Si falló el diagnóstico (exit 2), re-encodifica TODOS los PNGs para curarlos
+      - name: Re-encode all PNGs (fix CRC)
+        if: ${{ failure() }} # sólo corre si el paso anterior marcó error
+        run: |
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            # Re-encodifica in-place, quitando metadatos problemáticos
+            find . -type f -iname "*.png" -print0 | xargs -0 -I{} mogrify -strip {}
+            # (Opcional) vuelve a listar por si quieres comparar tamaños
+            find . -type f -iname "*.png" -exec ls -lh {} \;
+
+      # 3) Vuelve a chequear para confirmar que ya no hay PNGs malos
+      - name: Re-check PNGs after fix
+        run: |
+            node - <<'NODE'
+            const fs=require('fs'); const path=require('path'); const Jimp=require('jimp-compact');
+            const walk=(d)=>fs.readdirSync(d,{withFileTypes:true}).flatMap(de=>{
+              const p=path.join(d,de.name);
+              return de.isDirectory()?walk(p):p;
+            });
+            const files=walk(process.cwd()).filter(f=>f.toLowerCase().endsWith('.png'));
+            (async()=>{
+              let bad=[];
+              for (const f of files) {
+                try { await Jimp.read(f); }
+                catch(e){ console.log('STILL BAD:', f, e.message); bad.push(f); }
+              }
+              if (bad.length){ console.error('There are still bad PNGs:', bad); process.exit(1); }
+              console.log('PNG check passed ✅');
+            })();
+            NODE
 
       - name: Check assets
         run: |
