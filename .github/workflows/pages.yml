@@ -75,6 +75,12 @@ jobs:
           node scripts/patch-base.js dist /rn-sudoku
           node scripts/make-404.js dist
 
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./web-build # Path to your built web files
+
       # (Opcional) elimina service workers para evitar cache viejo
       - name: Remove service worker (optional)
         run: |

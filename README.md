@@ -33,3 +33,6 @@ npm run web
 
 # ejecutar con cache limpio
 npx expo start -c
+
+
+#utils https://github.com/gitname/react-gh-pagesnpm run
