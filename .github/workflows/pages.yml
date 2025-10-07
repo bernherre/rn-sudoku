@@ -52,22 +52,8 @@ jobs:
           rm -f dist/registerSW.* || true
 
       # Copia a /docs y desactiva Jekyll
-      - name: Prepare /docs for Pages
-        run: |
-            rm -rf docs
-            mkdir -p docs
-            cp -r dist/* docs/
       - name: Disable Jekyll
         run: echo > docs/.nojekyll
-
-      # DEBUG: asegúrate que base está inyectada y rutas correctas
-      - name: Show index head (debug)
-        run: |
-            head -n 40 docs/index.html
-            echo "---- first scripts ----"
-            grep -oE '<script[^>]+src="[^"]+"' -m 5 docs/index.html || true
-            echo "---- first links ----"
-            grep -oE '<link[^>]+href="[^"]+"' -m 5 docs/index.html || true
 
       # Inyecta <base href="/rn-sudoku/"> y crea 404.html
       - name: Patch base and SPA 404
@@ -87,25 +73,11 @@ jobs:
           rm -f dist/sw.js || true
           rm -f dist/registerSW.* || true
 
-      # Copia a /docs para Pages
-      - name: Prepare /docs for Pages
-        run: |
-          rm -rf docs
-          mkdir -p docs
-          cp -r dist/* docs/
-
       # Evita Jekyll
       - name: Disable Jekyll
-        run: echo > docs/.nojekyll
+        run: echo > dist/.nojekyll
 
       # Verifica que <base> está realmente inyectado (debug)
       - name: Show index head (debug)
-        run: head -n 30 docs/index.html
+        run: head -n 30 dist/index.html
 
-      # Commit a main
-      - name: Commit docs to main
-        uses: EndBug/add-and-commit@v9
-        with:
-          add: "docs"
-          message: "[skip ci] build: export web to /docs"
-          default_author: github_actions
