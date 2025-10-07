@@ -14,6 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: Make clean PNG assets for CI
         run: |
           mkdir -p assets
@@ -22,6 +23,10 @@ jobs:
           echo "$BASE64_PNG" | base64 -d > assets/icon.png
           cp assets/icon.png assets/favicon.png
           cp assets/icon.png assets/splash.png
-      
+
+      - name: Check assets
+        run: |
+            ls -l assets
+            file assets/icon.png
       - run: npm ci || npm install
       - run: npm run web:build
