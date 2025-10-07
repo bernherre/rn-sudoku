@@ -14,7 +14,7 @@
     "userInterfaceStyle": "automatic",
     "web": {
       "bundler": "metro",
-      //"favicon": "./assets/favicon.png",
+      "favicon": "./assets/favicon.png",
       "build": {
         "output": "docs",
         "publicPath": "/rn-sudoku/"
