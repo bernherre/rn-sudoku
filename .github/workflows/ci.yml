@@ -1,21 +1,26 @@
-﻿name: Build & Deploy Expo Web to gh-pages
+﻿name: CI — Expo Web (all branches & PR)
 
 on:
   push:
-    branches:
-        - main   
-        - dev
-        - origin/dev
+    branches: ["**"]
     branches-ignore:
-        - gh-pages      # evita loops por el branch de Pages
+      - gh-pages
     paths-ignore:
-        - 'dist/**'
-        - 'docs/**'
+      - "dist/**"
+      - "docs/**"
   pull_request:
-    types: [opened, reopened]
+    branches: ["**"]
+    paths-ignore:
+      - "dist/**"
+      - "docs/**"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -29,14 +34,14 @@ jobs:
       # 2) Node + cache npm
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       # 3) Install deps
       - name: Install
         run: npm ci --no-audit --no-fund
 
-      # 4) (Higiene) borra claves sueltas que puedan confundir a Expo
+      # 4) Higiene: quitar claves sueltas que confunden a Expo
       - name: Clean stray Expo keys in package.json
         run: |
           node - <<'NODE'
@@ -47,7 +52,7 @@ jobs:
           console.log('package.json cleaned');
           NODE
 
-      # 5) Genera assets CI válidos y escribe app.json limpio (override para este build)
+      # 5) Generar assets CI válidos y app.json mínimo
       - name: Generate CI assets and app.json
         run: |
           sudo apt-get update && sudo apt-get install -y imagemagick
@@ -55,14 +60,13 @@ jobs:
           # icon 1024x1024 transparente
           convert -size 1024x1024 xc:none PNG32:assets/icon.png
           cp assets/icon.png assets/icon.local.png
-          # favicon 512x512 derivado
+          # favicon 512x512
           convert assets/icon.png -resize 512x512 PNG32:assets/favicon.png
           cp assets/favicon.png assets/favicon.local.png
           # splash 2048x2048 blanco
           convert -size 2048x2048 xc:white PNG32:assets/splash.png
           cp assets/splash.png assets/splash.local.png
 
-          # app.json minimal apuntando a estos assets
           cat > app.json <<'JSON'
           {
             "expo": {
@@ -79,25 +83,77 @@ jobs:
               "web": {
                 "bundler": "metro",
                 "favicon": "./assets/favicon.png",
-                "build": { "publicPath": "/rn-sudoku/" }
+                "build": { "publicPath": "/rn-sudoku/", "pwa": false }
               }
             }
           }
           JSON
 
-      # 6) (Opcional) verifica que sean PNG reales y no punteros LFS
-      - name: Verify assets are real PNGs
-        run: |
-          git lfs ls-files || true
-          file assets/*.png || true
+      # 6) Preferir Sharp (evita Jimp y sus CRC)
+      - name: Enable sharp image pipeline
+        run: npm i -D sharp sharp-cli
 
-      # 7) Desactiva caché de image-utils por si quedó algo viejo
+      - name: Check sharp presence
+        run: node -e "require.resolve('sharp');console.log('sharp present ✅')"
+
+      # 7) (Opcional) diagnosticar PNGs rotos en repo (por si se importan desde código)
+      - name: Diagnose PNGs (Jimp)
+        id: diag
+        run: |
+          set -e
+          node - <<'NODE' > bad_pngs.txt
+          const fs=require('fs'); const path=require('path'); const Jimp=require('jimp-compact');
+          const walk=(d)=>fs.readdirSync(d,{withFileTypes:true}).flatMap(de=>{
+            const p=path.join(d,de.name);
+            return de.isDirectory()?walk(p):p;
+          });
+          const files=walk(process.cwd()).filter(f=>f.toLowerCase().endsWith('.png'));
+          (async()=>{
+            let bad=[];
+            for (const f of files) {
+              try { await Jimp.read(f); }
+              catch(e){ bad.push(f); }
+            }
+            if (bad.length) console.log(bad.join('\n'));
+          })();
+          NODE
+          echo "has_bad=$( [ -s bad_pngs.txt ] && echo true || echo false )" >> $GITHUB_OUTPUT
+          echo "Bad PNGs (if any):"; cat bad_pngs.txt || true
+
+      # 8) Re-encode SOLO los malos (tolerante a fallos)
+      - name: Re-encode bad PNGs with ImageMagick
+        if: steps.diag.outputs.has_bad == 'true'
+        continue-on-error: true
+        run: |
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            echo "Fixing $f"
+            if file "$f" | grep -qi 'png image'; then
+              convert "$f" -strip PNG32:"$f.tmp" && mv "$f.tmp" "$f" || echo "convert failed, will rely on app.json CI assets"
+            else
+              echo "Not a PNG (maybe LFS pointer). Skipping: $f"
+            fi
+          done < bad_pngs.txt
+
+      # 9) Evitar cachés previas de image-utils
       - name: Disable image utils cache
         run: echo "EXPO_IMAGE_UTILS_NO_CACHE=1" >> $GITHUB_ENV
 
-      # 8) Build Expo Web -> dist/
+      # 10) Tests/lint (opcionales)
+      - name: Test
+        run: npm test --silent --passWithNoTests
+
+      # 11) Build Expo Web -> dist/ (sin deploy)
       - name: Build web (to dist/)
         run: npm run build:web
         env:
           EXPO_APP_JSON: app.json
 
+      # 12) Publicar artefacto (útil en PR)
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist
+          if-no-files-found: warn
