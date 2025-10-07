@@ -11,6 +11,8 @@ on:
     paths-ignore:
         - 'dist/**'
         - 'docs/**'
+  pull_request:
+    types: [opened, reopened]
 
 permissions:
   contents: write
