@@ -4,7 +4,7 @@
     "slug": "rn-sudoku",
     "platforms": [ "ios", "android", "web" ],
     "experiments": {
-      "baseUrl": "/expo-gh-pages"
+      "baseUrl": "/dist"
     },
     //"icon": "./assets/icon.png",
     //"splash": {
