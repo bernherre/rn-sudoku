@@ -1,81 +1,166 @@
-﻿name: Build Expo Web to /docs (Pages from branch)
+﻿name: Build & Deploy Pages (any branch → gh-pages) [PWA + Previews]
 
 on:
   push:
-    branches: [ main ]
+    branches: ["**"]         # publica en todas las ramas
+    branches-ignore:
+      - gh-pages             # evita loops
     paths-ignore:
-      - 'docs/**'
+      - "dist/**"
+      - "docs/**"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # SITE_BASE y DEST_DIR dinámicos:
+  # main -> /rn-sudoku    y destino '.'
+  # otras ramas -> /rn-sudoku/preview/<rama>   y destino 'preview/<rama>'
+  SITE_BASE: ${{ github.ref_name == 'main' && '/rn-sudoku' || format('/rn-sudoku/preview/{0}', github.ref_name) }}
+  DEST_DIR:  ${{ github.ref_name == 'main' && '.'          || format('preview/{0}', github.ref_name) }}
+
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      # Quita este bloque si tienes package-lock.json y usas npm ci
-      - name: Pin Expo Web deps (React 18.2)
-        run: |
-          npm pkg set "dependencies.react=18.2.0"
-          npm pkg set "dependencies.react-dom=18.2.0"
-          npm pkg set "overrides.react=18.2.0"
-          npm pkg set "overrides.react-dom=18.2.0"
-          npm pkg set "dependencies.react-native-web=0.19.10"
-          npm pkg set "dependencies.@expo/metro-runtime=~3.2.3"
+          node-version: "20"
+          cache: "npm"
 
       - name: Install
-        run: npm install --no-audit --no-fund --omit=optional
+        run: npm ci --no-audit --no-fund
 
-      # Genera un app.ci.json con assets válidos para evitar CRC de Jimp
-      - name: Make CI config and assets
-        run: node scripts/ci-make-config.js
+      - name: Clean stray Expo keys in package.json
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const p=JSON.parse(fs.readFileSync('package.json','utf8'));
+          delete p.icon; delete p.web; delete p.splash;
+          fs.writeFileSync('package.json', JSON.stringify(p,null,2));
+          NODE
 
-      - name: Make CI config and assets
-        run: node scripts/ci-make-config.js
+      - name: Generate CI assets and app.json (PWA)
+        run: |
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          mkdir -p assets
+          convert -size 1024x1024 xc:none PNG32:assets/icon.png
+          cp assets/icon.png assets/icon.local.png
+          convert assets/icon.png -resize 512x512 PNG32:assets/favicon.png
+          cp assets/favicon.png assets/favicon.local.png
+          convert -size 2048x2048 xc:white PNG32:assets/splash.png
+          cp assets/splash.png assets/splash.local.png
 
-      - name: Install gh-pages
-        run: npm install --save-dev gh-pages
+          cat > app.json <<JSON
+          {
+            "expo": {
+              "name": "rn-sudoku",
+              "slug": "rn-sudoku",
+              "platforms": ["ios", "android", "web"],
+              "userInterfaceStyle": "automatic",
+              "icon": "./assets/icon.png",
+              "splash": {
+                "image": "./assets/splash.png",
+                "resizeMode": "contain",
+                "backgroundColor": "#ffffff"
+              },
+              "web": {
+                "bundler": "metro",
+                "favicon": "./assets/favicon.png",
+                "build": { "publicPath": "${SITE_BASE}/", "pwa": true },
+                "themeColor": "#ffffff"
+              }
+            }
+          }
+          JSON
+
+      - name: Enable sharp image pipeline
+        run: npm i -D sharp sharp-cli
+
+      - name: Check sharp presence
+        run: node -e "require.resolve('sharp');console.log('sharp present ✅')"
+
+      - name: Disable image utils cache
+        run: echo "EXPO_IMAGE_UTILS_NO_CACHE=1" >> $GITHUB_ENV
 
       - name: Build web (to dist/)
-        run: npm run deploy
+        run: npm run build:web
         env:
-          EXPO_APP_JSON: app.ci.json
+          EXPO_APP_JSON: app.json
 
-      # (Opcional) elimina service worker para evitar caches viejos
-      - name: Remove service worker (optional)
+      - name: Rewrite base paths for GH Pages + PWA (no heredocs)
+        env:
+          SITE_BASE: /rn-sudoku
         run: |
-          rm -f dist/sw.js || true
-          rm -f dist/registerSW.* || true
+            set -e
+            # 1) Favicon dentro del sitio
+            SRC="assets/favicon.png"; [ -f "$SRC" ] || SRC="assets/icon.png"
+            cp "$SRC" dist/favicon.png || true
+            sudo apt-get update && sudo apt-get install -y imagemagick jq
+            convert "$SRC" -define icon:auto-resize=256,128,64,48,32,16 dist/favicon.ico || true
 
-      # Copia a /docs y desactiva Jekyll
-      - name: Disable Jekyll
-        run: echo > docs/.nojekyll
+            # 2) Reescritura masiva de rutas absolutas en todo dist/
+            #   "/_expo/..."        -> "${SITE_BASE}/_expo/..."
+            #   "/sw.js"            -> "${SITE_BASE}/sw.js"
+            #   "/manifest.json"    -> "${SITE_BASE}/manifest.json"
+            #   "href='favicon.ico'"-> "${SITE_BASE}/favicon.ico"
+            find dist -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' -o -name '*.css' \) -print0 | xargs -0 sed -i \
+              -e "s:\"/_expo/:\"${SITE_BASE}/_expo/:g" \
+              -e "s:'/_expo/:'${SITE_BASE}/_expo/:g" \
+              -e "s:\"/sw\\.js\":\"${SITE_BASE}/sw.js\":g" \
+              -e "s:'/sw\\.js':'${SITE_BASE}/sw.js':g" \
+              -e "s:\"/manifest\\.json\":\"${SITE_BASE}/manifest.json\":g" \
+              -e "s:'/manifest\\.json':'${SITE_BASE}/manifest.json':g" \
+              -e "s:href=[\"']/favicon\\.ico[\"']:href=\"${SITE_BASE}/favicon.ico\":g"
+
+            # 3) Inyectar <link rel="icon"> y <link rel="manifest"> en index/404
+            for f in dist/index.html dist/404.html; do
+              [ -f "$f" ] || continue
+              # quitar <link rel="icon"> y <link rel="manifest"> existentes
+              perl -0777 -pe "s/<link[^>]*rel=['\"]icon['\"][^>]*>\s*//gi" -i "$f"
+              perl -0777 -pe "s/<link[^>]*rel=['\"]manifest['\"][^>]*>\s*//gi" -i "$f"
+              # inyectar los correctos antes de </head>
+              perl -0777 -pe "s#</head>#  <link rel=\"icon\" href=\"$SITE_BASE/favicon.ico\"/>\n  <link rel=\"manifest\" href=\"$SITE_BASE/manifest.json\"/>\n</head>#i" -i "$f"
+              # asegurar que cualquier src|href="/_expo/..." lleve el subpath
+              perl -0777 -pe "s#(src|href)=[\"']\/(_expo\/[^\"']+)[\"']#\\1=\"$SITE_BASE/\\2\"#gi" -i "$f"
+            done
+
+            # 4) Ajustar manifest.json (start_url y scope al subpath)
+            if [ -f dist/manifest.json ]; then
+              jq --arg base "$SITE_BASE" '
+                .start_url = ($base + "/") |
+                .scope     = ($base + "/") |
+                (.icons // []) |=
+                  map( if (.src|type=="string" and (.src|startswith("/")))
+                         then (.src = ($base + .src))
+                         else .
+                       end )
+              ' dist/manifest.json > dist/manifest.tmp && mv dist/manifest.tmp dist/manifest.json
+            fi
+
+            # 5) Debug
+            grep -nE '(_expo\/static\/js|rel="icon"|rel="manifest"|sw\.js)' dist/index.html || true
+            [ -f dist/manifest.json ] && cat dist/manifest.json || true
 
 
-      - name: Deploy to GitHub Pages
+      - name: SPA fallback & nojekyll
+        run: |
+          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
+          touch dist/.nojekyll
+
+      - name: Deploy to gh-pages (root for main; preview/<branch> for others)
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist # Path to your built web files
-
-      # (Opcional) elimina service workers para evitar cache viejo
-      - name: Remove service worker (optional)
-        run: |
-          rm -f dist/sw.js || true
-          rm -f dist/registerSW.* || true
-
-      # Evita Jekyll
-      - name: Disable Jekyll
-        run: echo > dist/.nojekyll
-
-      # Verifica que <base> está realmente inyectado (debug)
-      - name: Show index head (debug)
-        run: head -n 30 dist/index.html
-
+          publish_dir: ./dist
+          destination_dir: ${{ env.DEST_DIR }}
+          keep_files: true
