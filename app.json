@@ -3,22 +3,14 @@
     "name": "rn-sudoku",
     "slug": "rn-sudoku",
     "platforms": [ "ios", "android", "web" ],
-    "experiments": {
-      "baseUrl": "/dist"
-    },
-    //"icon": "./assets/icon.png",
-    //"splash": {
-    //  "image": "./assets/splash.png",
-    //  "resizeMode": "contain",
-    //  "backgroundColor": "#ffffff"    },
     "userInterfaceStyle": "automatic",
     "web": {
       "bundler": "metro",
       "favicon": "./assets/favicon.png",
       "build": {
-        "output": "docs",
         "publicPath": "/rn-sudoku/"
       }
     }
   }
 }
+

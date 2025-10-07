@@ -1,9 +1,10 @@
-﻿name: Build Expo Web to /docs (Pages from branch)
+﻿name: Build & Deploy Expo Web to gh-pages
 
 on:
   push:
     branches: [ main ]
     paths-ignore:
+      - 'dist/**'
       - 'docs/**'
   workflow_dispatch:
 
@@ -19,63 +20,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      # Quita este bloque si tienes package-lock.json y usas npm ci
-      - name: Pin Expo Web deps (React 18.2)
-        run: |
-          npm pkg set "dependencies.react=18.2.0"
-          npm pkg set "dependencies.react-dom=18.2.0"
-          npm pkg set "overrides.react=18.2.0"
-          npm pkg set "overrides.react-dom=18.2.0"
-          npm pkg set "dependencies.react-native-web=0.19.10"
-          npm pkg set "dependencies.@expo/metro-runtime=~3.2.3"
+          cache: 'npm'
 
       - name: Install
-        run: npm install --no-audit --no-fund --omit=optional
-
-      # Genera un app.ci.json con assets válidos para evitar CRC de Jimp
-      - name: Make CI config and assets
-        run: node scripts/ci-make-config.js
-
-      - name: Make CI config and assets
-        run: node scripts/ci-make-config.js
-
-      - name: Install gh-pages
-        run: npm install --save-dev gh-pages
+        run: npm ci --no-audit --no-fund
 
       - name: Build web (to dist/)
-        run: npm run deploy
+        run: npm run build:web
         env:
-          EXPO_APP_JSON: app.ci.json
+          # Usa esto solo si de verdad generas un app.ci.json en scripts
+          EXPO_APP_JSON: app.json
 
-      # (Opcional) elimina service worker para evitar caches viejos
-      - name: Remove service worker (optional)
+      - name: SPA fallback & nojekyll
         run: |
-          rm -f dist/sw.js || true
-          rm -f dist/registerSW.* || true
+          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
+          touch dist/.nojekyll
+          # (Opcional) borrar SW para evitar cache viejo
+          rm -f dist/sw.js dist/registerSW.* || true
 
-      # Copia a /docs y desactiva Jekyll
-      - name: Disable Jekyll
-        run: echo > docs/.nojekyll
-
-
-      - name: Deploy to GitHub Pages
+      - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist # Path to your built web files
-
-      # (Opcional) elimina service workers para evitar cache viejo
-      - name: Remove service worker (optional)
-        run: |
-          rm -f dist/sw.js || true
-          rm -f dist/registerSW.* || true
-
-      # Evita Jekyll
-      - name: Disable Jekyll
-        run: echo > dist/.nojekyll
-
-      # Verifica que <base> está realmente inyectado (debug)
-      - name: Show index head (debug)
-        run: head -n 30 dist/index.html
-
+          publish_dir: ./dist
+          force_orphan: true
