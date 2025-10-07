@@ -41,7 +41,7 @@ jobs:
         run: node scripts/ci-make-config.js
 
       - name: Build web (to dist/)
-        run: npx expo export --platform web --output-dir dist
+        run: npm run deploy
         env:
           EXPO_APP_JSON: app.ci.json
 
