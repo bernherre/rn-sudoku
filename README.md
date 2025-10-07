@@ -35,4 +35,4 @@ npm run web
 npx expo start -c
 
 
-#utils https://github.com/gitname/react-gh-pagesnpm run
+# utils https://github.com/gitname/react-gh-pagesnpm run
