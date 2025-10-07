@@ -20,7 +20,7 @@ Sudoku multiplataforma (iOS, Android y Web con Expo) con tableros **4×4** y **6
 
 ---
 
-## 📦 Instalación
+## 📦 Instalación .
 
 -```bash
 # instalar dependencias
