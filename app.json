@@ -14,7 +14,7 @@
       "bundler": "metro",
       "favicon": "./assets/favicon.png",
       "build": {
-        "publicPath": "/rn-sudoku/" ,"pwa": false
+        "publicPath": "/rn-sudoku/" ,"pwa": true
       }
     }
   }
