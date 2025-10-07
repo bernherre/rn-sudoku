@@ -2,6 +2,7 @@
 
 Sudoku multiplataforma (iOS, Android y Web con Expo) con tableros **4×4** y **6×6**, niveles de dificultad, cronómetro y validación de errores.
 
+# autor @bernherre
 ---
 
 ## 🚀 Características
@@ -36,6 +37,8 @@ npm run android:build
 
 # ejecutar con cache limpio
 npx expo start -c .
+
+
 
 
 # utils https://github.com/gitname/react-gh-pagesnpm 
