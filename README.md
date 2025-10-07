@@ -29,7 +29,10 @@ npm install
 npm run start
 
 # lanzar en web
-npm run web
+npm run web:build 
+npm run ios:build
+npm run android:build
+```
 
 # ejecutar con cache limpio
 npx expo start -c .
