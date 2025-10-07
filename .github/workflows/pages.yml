@@ -15,7 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+        with:
+              fetch-depth: 0  # Necesario para gh-pages 
+              lfs: true  # Si usas Git LFS
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

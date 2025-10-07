@@ -10,11 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+              lfs: true  # Si usas Git LFS
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: npm ci || npm install
+  
+      - name: Verify assets
+        run: |
+            git lfs ls-files || true
+            file assets/*.png || true
+
       - name: Make clean PNG assets for CI
         run: |
           mkdir -p assets
