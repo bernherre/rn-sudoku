@@ -3,13 +3,14 @@
 on:
   push:
     branches:
-      - '**'          # todas las ramas
+        - main   
+        - dev
+        - origin/dev
     branches-ignore:
-      - gh-pages      # evita loops por el branch de Pages
+        - gh-pages      # evita loops por el branch de Pages
     paths-ignore:
-      - 'dist/**'
-      - 'docs/**'
-  workflow_dispatch:
+        - 'dist/**'
+        - 'docs/**'
 
 permissions:
   contents: write
