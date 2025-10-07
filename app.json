@@ -3,6 +3,9 @@
     "name": "rn-sudoku",
     "slug": "rn-sudoku",
     "platforms": [ "ios", "android", "web" ],
+    "experiments": {
+      "baseUrl": "/expo-gh-pages"
+    },
     //"icon": "./assets/icon.png",
     //"splash": {
     //  "image": "./assets/splash.png",
