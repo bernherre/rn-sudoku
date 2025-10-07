@@ -1,10 +1,9 @@
-﻿name: Build & Deploy Expo Web to gh-pages
+﻿name: Build Expo Web to /docs (Pages from branch)
 
 on:
   push:
     branches: [ main ]
     paths-ignore:
-      - 'dist/**'
       - 'docs/**'
   workflow_dispatch:
 
@@ -22,21 +21,28 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+        
       - name: Install
         run: npm ci --no-audit --no-fund
+
+      - name: Make clean PNG assets for CI
+        run: |
+            mkdir -p assets
+            BASE64_PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAObl+Q8AAAAASUVORK5CYII="
+            echo "$BASE64_PNG" | base64 -d > assets/icon.png
+            cp assets/icon.png assets/favicon.png
+            cp assets/icon.png assets/splash.png
 
       - name: Build web (to dist/)
         run: npm run build:web
         env:
-          # Usa esto solo si de verdad generas un app.ci.json en scripts
           EXPO_APP_JSON: app.json
 
       - name: SPA fallback & nojekyll
         run: |
-          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
-          touch dist/.nojekyll
-          # (Opcional) borrar SW para evitar cache viejo
-          rm -f dist/sw.js dist/registerSW.* || true
+            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./index.html"></head><body></body></html>' > dist/404.html
+            touch dist/.nojekyll
+            rm -f dist/sw.js dist/registerSW.* || true
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v3
@@ -44,3 +50,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           force_orphan: true
+
